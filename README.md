@@ -1,5 +1,5 @@
 # vendormachine
 
 Just run 
-```ruby tun.rb```
+```ruby run.rb```
 and enjoy!
