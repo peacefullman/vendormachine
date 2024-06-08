@@ -5,7 +5,6 @@ require_relative 'app/generate_inventory'
 
 def main
   vending_machine = VendingMachine.new
-  GenerateInventory.new(vending_machine).call
   vending_machine.greatings
   vending_machine.display_balance
   vending_machine.display_commands
@@ -29,7 +28,7 @@ def main
     when /\Adisplay_coins_change\z/i
       vending_machine.display_coins_change
     when /\Aselect_item\z/i
-      vending_machine.select_item(params.first)
+      vending_machine.select_item(params.join(' '))
     when /\Avend\z/i
       vending_machine.vend
     when /\Aexit\z/i

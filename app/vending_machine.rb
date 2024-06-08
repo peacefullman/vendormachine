@@ -34,6 +34,7 @@ class VendingMachine
     puts 'Commands:'
     puts 'display_commands - Display available commands'
     puts 'display_coins - Display accepted coins'
+    puts 'display_coins_change - Display available coins for change'
     puts 'display_balance - Display current balance'
     puts 'display_inventory - Display current inventory'
     puts 'insert_coin <coin> - Insert a coin'
