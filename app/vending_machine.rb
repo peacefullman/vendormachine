@@ -1,12 +1,12 @@
 # frozen_string_literal: true
 
-class VendingMachine
-  COINS = [0.25, 0.5, 1, 2, 3, 5].freeze
+require_relative 'coins_handler'
 
+class VendingMachine
   def initialize
     @inventory = {}
     @balance = 0.0
-    @coin_change = Hash.new(0)
+    @coins_handler = CoinsHandler.new
   end
 
   def greatings
@@ -24,15 +24,12 @@ class VendingMachine
     end
   end
 
-  def display_coin_change
-    puts 'Coin change:'
-    @coin_change.each do |coin, quantity|
-      puts "#{coin}: #{quantity}"
-    end
+  def display_coins_change
+    @coins_handler.display_coins_change
   end
 
   def display_coins
-    puts "Coins accepted: #{COINS.join(', ')}"
+    @coins_handler.display_coins
   end
 
   def display_commands
@@ -61,9 +58,9 @@ class VendingMachine
   end
 
   def insert_coin(coin)
-    if COINS.include?(coin)
+    if @coins_handler.valid_coin?(coin)
       @balance += coin
-      @coin_change[coin] += 1
+      @coins_handler.stock_coins(coin, 1)
       puts "Inserted coin: #{coin}, Current balance: #{@balance.to_f}"
     else
       puts 'Invalid coin'
@@ -75,8 +72,8 @@ class VendingMachine
       item_price = @inventory[@selected_item][:price]
       if @balance >= item_price
         change = @balance - item_price
-        if enough_change?(change)
-          dispense_change(change)
+        if @coins_handler.enough_change?(change)
+          @coins_handler.dispense_change(change)
           @inventory[@selected_item][:quantity] -= 1
           puts "Dispensing item: #{@selected_item}"
           @selected_item = nil
@@ -94,40 +91,5 @@ class VendingMachine
 
   def stock_item(item, price, quantity)
     @inventory[item] = { price: price, quantity: quantity }
-  end
-
-  def stock_coins(coin, quantity)
-    @coin_change[coin] += quantity
-  end
-
-  private
-
-  def enough_change?(amount)
-    calculate_change(amount).nil? ? false : true
-  end
-
-  def calculate_change(amount)
-    return {} if amount.zero?
-
-    change_to_return = {}
-    COINS.reverse.each do |coin|
-      next if amount.zero? || amount < coin
-
-      coin_count = [(amount / coin).to_i, @coin_change[coin]].min
-      amount -= coin_count * coin
-      change_to_return[coin] = coin_count if coin_count.positive?
-    end
-    amount.zero? ? change_to_return : nil
-  end
-
-  def dispense_change(amount)
-    change = calculate_change(amount)
-    return unless change
-
-    puts 'Dispensing change:'
-    change.each do |coin, count|
-      puts "#{coin} * #{count}"
-      @coin_change[coin] -= count
-    end
   end
 end

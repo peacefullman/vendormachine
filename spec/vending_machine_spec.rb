@@ -5,16 +5,23 @@ require './app/generate_inventory'
 require 'rspec'
 
 RSpec.describe VendingMachine do
+  let(:coins_handler) { instance_double('CoinsHandler') }
   let(:vending_machine) { VendingMachine.new }
 
   before do
-    GenerateInventory.new(vending_machine).call
+    allow(CoinsHandler).to receive(:new).and_return(coins_handler)
+  end
+
+  describe '#greatings' do
+    it 'outputs the welcome message' do
+      expect { vending_machine.greatings }.to output("Welcome to the SA Vending Machine!\n").to_stdout
+    end
   end
 
   describe '#display_balance' do
     it 'displays current balance' do
-      vending_machine.insert_coin(1)
-      expect { vending_machine.display_balance }.to output(/Current balance: 1.0/).to_stdout
+      vending_machine.instance_variable_set(:@balance, 10.0)
+      expect { vending_machine.display_balance }.to output(/Current balance: 10.0/).to_stdout
     end
   end
 
@@ -24,19 +31,27 @@ RSpec.describe VendingMachine do
     end
   end
 
-  describe '#display_coin_change' do
+  describe '#display_coins_change' do
     it 'displays available coins for change' do
-      expect { vending_machine.display_coin_change }.to output(/Coin change:/).to_stdout
+      expect(coins_handler).to receive(:display_coins_change)
+
+      vending_machine.display_coins_change
     end
   end
 
   describe '#display_coins' do
-    it 'displays available coins for change' do
-      expect { vending_machine.display_coins }.to output(/Coins accepted:/).to_stdout
+    it 'displays all valid coins' do
+      expect(coins_handler).to receive(:display_coins)
+
+      vending_machine.display_coins
     end
   end
 
   describe '#select_item' do
+    before do
+      GenerateInventory.new(vending_machine).call
+    end
+
     context 'when item is in stock' do
       it 'selects the item' do
         expect { vending_machine.select_item('Coke') }.to output(/Selected item: Coke, Price: 5/).to_stdout
@@ -64,16 +79,12 @@ RSpec.describe VendingMachine do
     end
   end
 
-  describe '#stock_coins' do
-    it 'stocks coins correctly' do
-      vending_machine.stock_coins(1, 10)
-      expect(vending_machine.instance_variable_get(:@coin_change)[1]).to eq(20)
-    end
-  end
-
   describe '#insert_coin' do
     context 'when coin is valid' do
       it 'inserts the coin and updates the balance' do
+        expect(coins_handler).to receive(:valid_coin?).with(1).and_return(true)
+        expect(coins_handler).to receive(:stock_coins).with(1, 1).and_return(true)
+
         expect { vending_machine.insert_coin(1) }.to output(/Inserted coin: 1, Current balance: 1.0/).to_stdout
         expect(vending_machine.instance_variable_get(:@balance)).to eq(1.0)
       end
@@ -81,24 +92,34 @@ RSpec.describe VendingMachine do
 
     context 'when coin is invalid' do
       it 'indicates invalid coin' do
+        expect(coins_handler).to receive(:valid_coin?).with(0.1).and_return(false)
         expect { vending_machine.insert_coin(0.1) }.to output(/Invalid coin/).to_stdout
       end
     end
   end
 
   describe '#vend' do
+    before do
+      GenerateInventory.new(vending_machine).call
+    end
+
+    before do
+      allow(coins_handler).to receive(:valid_coin?).with(anything).and_return(true)
+      allow(coins_handler).to receive(:stock_coins).with(anything, anything).and_return(true)
+    end
+
     context 'when balance is sufficient and change is available' do
       it 'vends the item and returns change' do
-        vending_machine.select_item('Coke')
-        vending_machine.insert_coin(5)
-        vending_machine.insert_coin(5)
-        vending_machine.insert_coin(3)
-        vending_machine.insert_coin(0.25)
-        vending_machine.insert_coin(0.25)
-        expect do
-          vending_machine.vend
-        end.to output(include('Dispensing change:', '5 * 1', '3 * 1', '0.5 * 1',
-                              'Dispensing item: Coke')).to_stdout
+        expect { vending_machine.select_item('Coke') }.to output(/Selected item: Coke, Price: 5/).to_stdout
+
+        expect { vending_machine.insert_coin(10) }.to output(/Inserted coin: 10, Current balance: 10.0/).to_stdout
+        expect { vending_machine.insert_coin(3) }.to output(/Inserted coin: 3, Current balance: 13.0/).to_stdout
+        expect { vending_machine.insert_coin(0.25) }.to output(/Inserted coin: 0.25, Current balance: 13.25/).to_stdout
+        expect { vending_machine.insert_coin(0.25) }.to output(/Inserted coin: 0.25, Current balance: 13.5/).to_stdout
+
+        expect(coins_handler).to receive(:enough_change?).with(8.5).and_return(true)
+        expect(coins_handler).to receive(:dispense_change).with(8.5)
+        expect { vending_machine.vend }.to output(/Dispensing item: Coke/).to_stdout
         expect(vending_machine.instance_variable_get(:@balance)).to eq(0)
         expect(vending_machine.instance_variable_get(:@inventory)['Coke'][:quantity]).to eq(1)
       end
@@ -106,8 +127,8 @@ RSpec.describe VendingMachine do
 
     context 'when balance is insufficient' do
       it 'asks for more coins' do
-        vending_machine.select_item('Coke')
-        vending_machine.insert_coin(1)
+        expect { vending_machine.select_item('Coke') }.to output(/Selected item: Coke, Price: 5/).to_stdout
+        expect { vending_machine.insert_coin(1) }.to output(/Inserted coin: 1, Current balance: 1.0/).to_stdout
         expect { vending_machine.vend }.to output(/Not enough balance. Please insert more coins./).to_stdout
       end
     end
@@ -115,8 +136,9 @@ RSpec.describe VendingMachine do
     context 'when change is not available' do
       it 'cancels the transaction' do
         vending_machine.instance_variable_set(:@coin_change, { 0.25 => 1, 0.5 => 1, 1 => 1, 2 => 0, 3 => 1, 5 => 2 })
-        vending_machine.select_item('Water')
-        vending_machine.insert_coin(5)
+        expect { vending_machine.select_item('Water') }.to output(/Selected item: Water, Price: 3/).to_stdout
+        expect { vending_machine.insert_coin(5) }.to output(/Inserted coin: 5, Current balance: 5.0/).to_stdout
+        expect(coins_handler).to receive(:enough_change?).with(2).and_return(false)
         expect { vending_machine.vend }.to output(/Cannot provide change, transaction canceled/).to_stdout
       end
     end

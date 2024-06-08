@@ -26,8 +26,8 @@ def main
       vending_machine.display_inventory
     when /\Ainsert_coin\z/i
       vending_machine.insert_coin(params.first.to_f)
-    when /\Adisplay_coin_change\z/i
-      vending_machine.display_coin_change
+    when /\Adisplay_coins_change\z/i
+      vending_machine.display_coins_change
     when /\Aselect_item\z/i
       vending_machine.select_item(params.first)
     when /\Avend\z/i
