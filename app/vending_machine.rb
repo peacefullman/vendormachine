@@ -1,11 +1,12 @@
 # frozen_string_literal: true
 
 require_relative 'coins_handler'
+require_relative 'inventory_handler'
 
 class VendingMachine
   def initialize
-    @inventory = {}
     @balance = 0.0
+    @inventory = InventoryHandler.new
     @coins_handler = CoinsHandler.new
   end
 
@@ -18,10 +19,7 @@ class VendingMachine
   end
 
   def display_inventory
-    puts 'Inventory:'
-    @inventory.each do |item, details|
-      puts "#{item}: Price: #{details[:price]}, Quantity: #{details[:quantity]}"
-    end
+    @inventory.display_inventory
   end
 
   def display_coins_change
@@ -45,10 +43,11 @@ class VendingMachine
   end
 
   def select_item(item)
-    if @inventory[item]
-      if (@inventory[item][:quantity]).positive?
-        puts "Selected item: #{item}, Price: #{@inventory[item][:price]}"
-        @selected_item = item
+    inventory_item = @inventory.get_item(item)
+    if inventory_item
+      if (inventory_item[:quantity]).positive?
+        puts "Selected item: #{inventory_item[:name]}, Price: #{inventory_item[:price]}"
+        @selected_item = inventory_item
       else
         puts 'Item out of stock'
       end
@@ -69,13 +68,13 @@ class VendingMachine
 
   def vend
     if @selected_item
-      item_price = @inventory[@selected_item][:price]
+      item_price = @selected_item[:price]
       if @balance >= item_price
         change = @balance - item_price
         if @coins_handler.enough_change?(change)
           @coins_handler.dispense_change(change)
-          @inventory[@selected_item][:quantity] -= 1
-          puts "Dispensing item: #{@selected_item}"
+          @selected_item[:quantity] -= 1
+          puts "Dispensing item: #{@selected_item[:name]}"
           @selected_item = nil
         else
           puts 'Cannot provide change, transaction canceled'
@@ -87,9 +86,5 @@ class VendingMachine
     else
       puts 'No item selected'
     end
-  end
-
-  def stock_item(item, price, quantity)
-    @inventory[item] = { price: price, quantity: quantity }
   end
 end

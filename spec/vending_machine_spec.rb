@@ -1,15 +1,16 @@
 # frozen_string_literal: true
 
 require './app/vending_machine'
-require './app/generate_inventory'
 require 'rspec'
 
 RSpec.describe VendingMachine do
   let(:coins_handler) { instance_double('CoinsHandler') }
+  let(:inventory_handler) { instance_double('InventoryHandler') }
   let(:vending_machine) { VendingMachine.new }
 
   before do
     allow(CoinsHandler).to receive(:new).and_return(coins_handler)
+    allow(InventoryHandler).to receive(:new).and_return(inventory_handler)
   end
 
   describe '#greatings' do
@@ -27,7 +28,9 @@ RSpec.describe VendingMachine do
 
   describe '#display_inventory' do
     it 'displays available items' do
-      expect { vending_machine.display_inventory }.to output(/Inventory:/).to_stdout
+      expect(inventory_handler).to receive(:display_inventory)
+
+      vending_machine.display_inventory
     end
   end
 
@@ -49,33 +52,28 @@ RSpec.describe VendingMachine do
 
   describe '#select_item' do
     before do
-      GenerateInventory.new(vending_machine).call
+      expect(inventory_handler).to receive(:get_item).with(anything).and_return(inventory_response)
     end
 
     context 'when item is in stock' do
+      let(:inventory_response) { { name: 'Coke', price: 5, quantity: 2 } }
       it 'selects the item' do
         expect { vending_machine.select_item('Coke') }.to output(/Selected item: Coke, Price: 5/).to_stdout
       end
     end
 
     context 'when item is out of stock' do
+      let(:inventory_response) { { name: 'Coke', price: 5, quantity: 0 } }
       it 'indicates the item is out of stock' do
-        vending_machine.instance_variable_get(:@inventory)['Coke'][:quantity] = 0
         expect { vending_machine.select_item('Coke') }.to output(/Item out of stock/).to_stdout
       end
     end
 
     context 'when item is invalid' do
+      let(:inventory_response) { nil }
       it 'indicates invalid selection' do
         expect { vending_machine.select_item('Invalid') }.to output(/Invalid selection/).to_stdout
       end
-    end
-  end
-
-  describe '#stock_item' do
-    it 'stocks items correctly' do
-      vending_machine.stock_item('Water', 1.0, 15)
-      expect(vending_machine.instance_variable_get(:@inventory)['Water']).to eq({ price: 1.0, quantity: 15 })
     end
   end
 
@@ -100,12 +98,10 @@ RSpec.describe VendingMachine do
 
   describe '#vend' do
     before do
-      GenerateInventory.new(vending_machine).call
-    end
-
-    before do
       allow(coins_handler).to receive(:valid_coin?).with(anything).and_return(true)
       allow(coins_handler).to receive(:stock_coins).with(anything, anything).and_return(true)
+      allow(inventory_handler).to receive(:get_item).with('Coke').and_return({ name: 'Coke', price: 5, quantity: 1 })
+      allow(inventory_handler).to receive(:get_item).with('Water').and_return({ name: 'Water', price: 3, quantity: 1 })
     end
 
     context 'when balance is sufficient and change is available' do
@@ -121,7 +117,7 @@ RSpec.describe VendingMachine do
         expect(coins_handler).to receive(:dispense_change).with(8.5)
         expect { vending_machine.vend }.to output(/Dispensing item: Coke/).to_stdout
         expect(vending_machine.instance_variable_get(:@balance)).to eq(0)
-        expect(vending_machine.instance_variable_get(:@inventory)['Coke'][:quantity]).to eq(1)
+        expect(inventory_handler.get_item('Coke')[:quantity]).to eq(0)
       end
     end
 
